@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/config/app_config.dart';
+import '../features/admin/presentation/executive_screen.dart';
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
@@ -139,16 +140,17 @@ final routerProvider = Provider<GoRouter>((ref) {
         ],
       ),
 
-      // ----------------------------------------------- بوابة المشرف
+      // ------------------------------------- بوابتا المشرف والإدارة
+      // Same screen, same endpoint: the questions leadership asks do not
+      // change with the title. The licence card is what differs, and the
+      // server decides that by role rather than the route.
       GoRoute(
         path: '/supervisor/home',
-        builder: (_, _) => const PlaceholderScreen(title: 'Supervisor Home'),
+        builder: (_, _) => const ExecutiveScreen(title: 'بوابة المشرف'),
       ),
-
-      // ---------------------------------------------- بوابة الإدارة
       GoRoute(
         path: '/admin/home',
-        builder: (_, _) => const PlaceholderScreen(title: 'Admin KPIs'),
+        builder: (_, _) => const ExecutiveScreen(),
       ),
     ],
     errorBuilder: (_, state) =>

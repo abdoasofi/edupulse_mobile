@@ -37,6 +37,41 @@ class AppConfig {
   String resourcePath(String doctype, [String? name]) =>
       name == null ? '/api/resource/$doctype' : '/api/resource/$doctype/$name';
 
+  /// Turns what a human types into a base URL Dio can use.
+  ///
+  /// People type `alnoor.edupulse.sa`, not `https://alnoor.edupulse.sa/`. Dio
+  /// treats a scheme-less base URL as a relative path, so the request goes
+  /// nowhere and fails as a connection error — indistinguishable, in the UI,
+  /// from a server being down.
+  ///
+  /// The scheme is inferred rather than guessed: an IP literal, `localhost`,
+  /// a `.local` name or an explicit port is a development bench and gets
+  /// `http`; anything else is a school's real domain and gets `https`. Typing
+  /// a scheme explicitly always wins.
+  static String normaliseSiteUrl(String input) {
+    var value = input.trim();
+    if (value.isEmpty) return value;
+
+    if (!value.contains('://')) {
+      value = '${_inferScheme(value)}://$value';
+    }
+
+    return value.replaceAll(RegExp(r'/+$'), '');
+  }
+
+  static String _inferScheme(String hostAndPort) {
+    final host = hostAndPort.split('/').first;
+    final bare = host.split(':').first;
+
+    final isLocal =
+        RegExp(r'^\d{1,3}(\.\d{1,3}){3}$').hasMatch(bare) ||
+        bare == 'localhost' ||
+        bare.endsWith('.local') ||
+        host.contains(':');
+
+    return isLocal ? 'http' : 'https';
+  }
+
   AppConfig copyWith({String? baseUrl, String? tenantSlug}) => AppConfig(
     baseUrl: baseUrl ?? this.baseUrl,
     tenantSlug: tenantSlug ?? this.tenantSlug,

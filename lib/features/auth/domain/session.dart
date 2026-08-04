@@ -1,4 +1,5 @@
 import '../../../core/config/app_config.dart';
+import '../../admin/domain/admin_models.dart' show Licence;
 
 /// The authenticated user, as returned by `auth.login` / `auth.bootstrap`.
 class UserProfile {
@@ -60,6 +61,7 @@ class TenantConfig {
     this.offlineLibraryEnabled = true,
     this.offlineSyncDays = 14,
     this.pushEnabled = false,
+    this.licence,
   });
 
   final String site;
@@ -76,6 +78,10 @@ class TenantConfig {
   final bool offlineLibraryEnabled;
   final int offlineSyncDays;
   final bool pushEnabled;
+
+  /// The school's subscription. Every persona receives the state; only an
+  /// admin receives the plan, dates and seat counts.
+  final Licence? licence;
 
   factory TenantConfig.fromBootstrap(Map<String, dynamic> json) {
     final tenant = Map<String, dynamic>.from(json['tenant'] as Map? ?? {});
@@ -99,6 +105,11 @@ class TenantConfig {
       offlineLibraryEnabled: (features['offline_library'] as num?)?.toInt() == 1,
       offlineSyncDays: (features['offline_sync_days'] as num?)?.toInt() ?? 14,
       pushEnabled: features['push_notifications'] == true,
+      licence: json['licence'] == null
+          ? null
+          : Licence.fromJson(
+              Map<String, dynamic>.from(json['licence'] as Map),
+            ),
     );
   }
 }

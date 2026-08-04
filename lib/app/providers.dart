@@ -5,6 +5,8 @@ import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
 import '../core/network/api_result.dart';
 import '../core/storage/token_store.dart';
+import '../features/admin/data/admin_repository.dart';
+import '../features/admin/domain/admin_models.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/domain/session.dart';
 import '../features/quiz/data/quiz_repository.dart';
@@ -66,7 +68,7 @@ class AuthController extends StateNotifier<AuthState> {
         state = UpgradeRequired(e.message);
       } else if (e.isAuthFailure) {
         await _repo.logout();
-        state = const Unauthenticated(message: 'Session expired.');
+        state = const Unauthenticated(message: 'انتهت الجلسة، سجّل الدخول مجدداً.');
       } else {
         state = Unauthenticated(message: e.message);
       }
@@ -181,4 +183,17 @@ final masteryImpactProvider = FutureProvider.autoDispose
     .family<MasteryImpact, String?>(
       (ref, course) =>
           ref.watch(teacherRepositoryProvider).impact(course: course),
+    );
+
+// ────────────────────────── وحدة الإدارة والإشراف ──────────────────────────
+
+final adminRepositoryProvider = Provider<AdminRepository>(
+  (ref) => AdminRepository(ref.watch(apiClientProvider)),
+);
+
+/// Keyed by the reporting window so switching 7/30/90 days refetches rather
+/// than reusing a cached answer for a different question.
+final executiveKpisProvider = FutureProvider.autoDispose
+    .family<ExecutiveKpis, int>(
+      (ref, days) => ref.watch(adminRepositoryProvider).kpis(days: days),
     );

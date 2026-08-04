@@ -1,4 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter's template declares INTERNET only in the debug and profile
+         manifests, because the tool needs it for hot reload. An app that talks
+         to a server needs it in the RELEASE manifest too. Without this line
+         every request in a release build fails at the socket with the same
+         "cannot reach the server" message a wrong address produces — and it
+         cannot be reproduced in debug, where the permission is merged in. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <application
         android:label="edupulse_mobile"
         android:name="${applicationName}"
