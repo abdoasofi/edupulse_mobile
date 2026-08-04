@@ -40,11 +40,13 @@ class _ErrorPanel extends StatelessWidget {
     final theme = Theme.of(context);
     final api = error is ApiException ? error as ApiException : null;
     final isGate = api?.isGate ?? false;
+    final isLicence = api?.isLicenceBlock ?? false;
 
     final icon = switch (api?.code) {
       ApiErrorCode.contentLocked => Icons.lock_outline,
       ApiErrorCode.attemptsExhausted => Icons.replay_circle_filled_outlined,
       ApiErrorCode.network => Icons.wifi_off_outlined,
+      ApiErrorCode.licenceInactive => Icons.school_outlined,
       _ => Icons.error_outline,
     };
 
@@ -59,7 +61,11 @@ class _ErrorPanel extends StatelessWidget {
             Icon(icon, size: 52, color: colour),
             const SizedBox(height: 16),
             Text(
-              isGate ? 'لم يحن وقت هذا بعد' : 'تعذّر التحميل',
+              isLicence
+                  ? 'اشتراك المدرسة'
+                  : isGate
+                  ? 'لم يحن وقت هذا بعد'
+                  : 'تعذّر التحميل',
               style: theme.textTheme.titleMedium,
             ),
             const SizedBox(height: 8),
@@ -68,7 +74,10 @@ class _ErrorPanel extends StatelessWidget {
               textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium,
             ),
-            if (onRetry != null) ...[
+            // No retry button on a licence block: the call fails identically
+            // every time, and offering it invites a student to hammer a wall
+            // only their school can move.
+            if (onRetry != null && !isLicence) ...[
               const SizedBox(height: 20),
               FilledButton.tonal(
                 onPressed: onRetry,

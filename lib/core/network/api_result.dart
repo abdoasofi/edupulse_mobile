@@ -14,6 +14,7 @@ enum ApiErrorCode {
   validationError('VALIDATION_ERROR'),
   notFound('NOT_FOUND'),
   appUpgradeRequired('APP_UPGRADE_REQUIRED'),
+  licenceInactive('LICENCE_INACTIVE'),
   serverError('SERVER_ERROR'),
   network('NETWORK_ERROR'),
   unknown('UNKNOWN');
@@ -49,9 +50,17 @@ class ApiException implements Exception {
 
   /// True when the user hit a pedagogical gate rather than a real error —
   /// the UI should explain, not apologise.
+  ///
+  /// A lapsed subscription is deliberately NOT a gate: nothing the student
+  /// does will open it, so framing it as "not yet unlocked" leaves them
+  /// waiting for a lesson that is never coming.
   bool get isGate =>
       code == ApiErrorCode.contentLocked ||
       code == ApiErrorCode.attemptsExhausted;
+
+  /// The school's subscription lapsed or was suspended. Nothing is wrong with
+  /// the account, and retrying will not help — only the school can fix it.
+  bool get isLicenceBlock => code == ApiErrorCode.licenceInactive;
 
   factory ApiException.fromEnvelope(
     Map<String, dynamic> error, {

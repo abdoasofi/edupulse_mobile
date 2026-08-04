@@ -138,13 +138,39 @@ class ApiClient {
     );
   }
 
-  String _networkMessage(DioException e) => switch (e.type) {
-    DioExceptionType.connectionTimeout ||
-    DioExceptionType.receiveTimeout ||
-    DioExceptionType.sendTimeout => 'The connection timed out.',
-    DioExceptionType.connectionError => 'No connection to the server.',
-    _ => e.message ?? 'Network error.',
-  };
+  /// Transport failures, described by what actually happened.
+  ///
+  /// Dio cannot tell "this device has no internet" apart from "this device has
+  /// internet, but nothing is listening at that address" — both surface as
+  /// `connectionError`. The previous wording picked the first reading and
+  /// stated it as fact, so a phone with a working connection was told its
+  /// connection was down, and the person reading it went looking in the one
+  /// place where nothing was wrong.
+  ///
+  /// Naming the host is what makes the message actionable: it is almost always
+  /// the address that is wrong, and the address is the one thing the user can
+  /// see and change on the login screen.
+  String _networkMessage(DioException e) {
+    final host = _host(e);
+
+    return switch (e.type) {
+      DioExceptionType.connectionTimeout ||
+      DioExceptionType.receiveTimeout ||
+      DioExceptionType.sendTimeout =>
+        'استغرق الاتصال بـ $host وقتاً أطول من المسموح. الخادم بطيء أو غير متاح.',
+      DioExceptionType.connectionError =>
+        'تعذّر الوصول إلى $host — تأكد من صحة عنوان المدرسة ومن أن الجهاز على '
+            'الشبكة نفسها.',
+      DioExceptionType.badCertificate =>
+        'شهادة الأمان لـ $host غير موثوقة.',
+      _ => e.message ?? 'تعذّر إتمام الطلب.',
+    };
+  }
+
+  String _host(DioException e) {
+    final uri = e.requestOptions.uri;
+    return uri.host.isEmpty ? _dio.options.baseUrl : uri.authority;
+  }
 
   Map<String, dynamic>? _clean(Map<String, dynamic>? input) {
     if (input == null) return null;
