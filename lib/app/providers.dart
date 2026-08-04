@@ -7,6 +7,15 @@ import '../core/network/api_result.dart';
 import '../core/storage/token_store.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/domain/session.dart';
+import '../features/quiz/data/quiz_repository.dart';
+import '../features/remedial/data/remedial_repository.dart';
+import '../features/remedial/domain/remedial_models.dart';
+import '../features/quiz/domain/quiz_models.dart';
+import '../features/student/data/student_repository.dart';
+import '../features/student/domain/student_models.dart';
+import '../features/teacher/data/teacher_repository.dart';
+import '../features/teacher/domain/teacher_models.dart';
+import '../features/video/data/video_repository.dart';
 
 final tokenStoreProvider = Provider<TokenStore>((ref) => TokenStore());
 
@@ -86,8 +95,10 @@ class AuthController extends StateNotifier<AuthState> {
     state = const Unauthenticated();
   }
 
-  Future<String> _version() async =>
-      _ref.read(appVersionProvider).value ?? '0.0.0';
+  /// Must AWAIT the provider. Reading `.value` before the future resolves
+  /// yields null → '0.0.0', which the server correctly rejects as below the
+  /// tenant's minimum version, showing a bogus "update required" screen.
+  Future<String> _version() => _ref.read(appVersionProvider.future);
 }
 
 final authControllerProvider =
@@ -103,3 +114,71 @@ final tenantProvider = Provider<TenantConfig?>((ref) {
   final state = ref.watch(authControllerProvider);
   return state is Authenticated ? state.tenant : null;
 });
+
+// ─────────────────────────────── وحدة الطالب ───────────────────────────────
+
+final studentRepositoryProvider = Provider<StudentRepository>(
+  (ref) => StudentRepository(ref.watch(apiClientProvider)),
+);
+
+final videoRepositoryProvider = Provider<VideoRepository>(
+  (ref) => VideoRepository(ref.watch(apiClientProvider)),
+);
+
+final quizRepositoryProvider = Provider<QuizRepository>(
+  (ref) => QuizRepository(ref.watch(apiClientProvider)),
+);
+
+final dashboardProvider = FutureProvider.autoDispose<StudentDashboard>(
+  (ref) => ref.watch(studentRepositoryProvider).dashboard(),
+);
+
+final learningPathProvider = FutureProvider.autoDispose
+    .family<LearningPath, String>(
+      (ref, course) => ref.watch(studentRepositoryProvider).learningPath(course),
+    );
+
+final lessonProvider = FutureProvider.autoDispose.family<LessonDetail, String>(
+  (ref, lesson) => ref.watch(studentRepositoryProvider).lesson(lesson),
+);
+
+final quizPaperProvider = FutureProvider.autoDispose.family<QuizPaper, String>(
+  (ref, quiz) => ref.watch(quizRepositoryProvider).paper(quiz),
+);
+
+final remedialRepositoryProvider = Provider<RemedialRepository>(
+  (ref) => RemedialRepository(ref.watch(apiClientProvider)),
+);
+
+/// The active remedial path. `null` data means the student has none.
+final remedialPathProvider = FutureProvider.autoDispose
+    .family<RemedialPath?, String?>(
+      (ref, assignment) =>
+          ref.watch(remedialRepositoryProvider).active(assignment: assignment),
+    );
+
+// ─────────────────────────────── وحدة المعلم ───────────────────────────────
+
+final teacherRepositoryProvider = Provider<TeacherRepository>(
+  (ref) => TeacherRepository(ref.watch(apiClientProvider)),
+);
+
+/// A null course means "every course I teach" — the server resolves the roster
+/// from Course Instructor, so the app never has to know the teacher's classes.
+final classOverviewProvider = FutureProvider.autoDispose
+    .family<ClassOverview, String?>(
+      (ref, course) =>
+          ref.watch(teacherRepositoryProvider).classOverview(course: course),
+    );
+
+final strugglingProvider = FutureProvider.autoDispose
+    .family<List<StrugglingEntry>, String?>(
+      (ref, course) =>
+          ref.watch(teacherRepositoryProvider).struggling(course: course),
+    );
+
+final masteryImpactProvider = FutureProvider.autoDispose
+    .family<MasteryImpact, String?>(
+      (ref, course) =>
+          ref.watch(teacherRepositoryProvider).impact(course: course),
+    );

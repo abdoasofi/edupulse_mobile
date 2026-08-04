@@ -7,6 +7,14 @@ import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/upgrade_screen.dart';
+import '../features/quiz/presentation/quiz_screen.dart';
+import '../features/remedial/presentation/remedial_screen.dart';
+import '../features/student/presentation/learning_path_screen.dart';
+import '../features/student/presentation/lesson_screen.dart';
+import '../features/student/presentation/student_home_screen.dart';
+import '../features/teacher/presentation/class_screen.dart';
+import '../features/teacher/presentation/struggling_screen.dart';
+import '../features/teacher/presentation/teacher_home_screen.dart';
 import '../shared/widgets/placeholder_screen.dart';
 import 'providers.dart';
 
@@ -70,32 +78,29 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ------------------------------------------------ بوابة الطالب
       GoRoute(
         path: '/student/home',
-        builder: (_, _) => const PlaceholderScreen(title: 'Student Home'),
+        builder: (_, _) => const StudentHomeScreen(),
         routes: [
           GoRoute(
             path: 'path/:course',
             builder: (_, s) =>
-                PlaceholderScreen(title: 'Path ${s.pathParameters['course']}'),
+                LearningPathScreen(course: s.pathParameters['course']!),
           ),
           GoRoute(
             path: 'lesson/:lesson',
-            builder: (_, s) => PlaceholderScreen(
-              title: 'Lesson ${s.pathParameters['lesson']}',
-            ),
+            builder: (_, s) => LessonScreen(lesson: s.pathParameters['lesson']!),
           ),
           GoRoute(
             path: 'quiz/:quiz',
-            builder: (_, s) =>
-                PlaceholderScreen(title: 'Quiz ${s.pathParameters['quiz']}'),
+            builder: (_, s) => QuizScreen(quiz: s.pathParameters['quiz']!),
           ),
           GoRoute(
             path: 'remedial',
-            builder: (_, _) => const PlaceholderScreen(title: 'Remedial Path'),
+            builder: (_, s) =>
+                RemedialScreen(assignment: s.uri.queryParameters['assignment']),
           ),
           GoRoute(
             path: 'library',
-            builder: (_, _) =>
-                const PlaceholderScreen(title: 'EduPulse Library'),
+            builder: (_, _) => const PlaceholderScreen(title: 'مكتبة إدو بلس'),
           ),
         ],
       ),
@@ -117,18 +122,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ------------------------------------------------ بوابة المعلم
       GoRoute(
         path: '/teacher/home',
-        builder: (_, _) => const PlaceholderScreen(title: 'Teacher Home'),
+        builder: (_, _) => const TeacherHomeScreen(),
         routes: [
+          // Course is optional: without it the server resolves the roster from
+          // every course the teacher instructs, which is the common case.
           GoRoute(
-            path: 'class/:course',
-            builder: (_, s) => PlaceholderScreen(
-              title: 'Class ${s.pathParameters['course']}',
-            ),
+            path: 'class',
+            builder: (_, s) =>
+                ClassScreen(course: s.uri.queryParameters['course']),
           ),
           GoRoute(
             path: 'struggling',
-            builder: (_, _) =>
-                const PlaceholderScreen(title: 'Struggling Students'),
+            builder: (_, s) =>
+                StrugglingScreen(course: s.uri.queryParameters['course']),
           ),
         ],
       ),

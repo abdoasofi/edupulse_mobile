@@ -49,6 +49,19 @@ class ApiClient {
   /// Points the client at a different tenant site at runtime.
   void switchTenant(String baseUrl) => _dio.options.baseUrl = baseUrl;
 
+  /// Resolves a server-supplied URL.
+  ///
+  /// The API returns site-hosted media as a relative path (`/files/x.mp4`) so
+  /// it stays correct whatever host the app reaches the tenant on — an
+  /// `adb reverse` localhost, a LAN IP, or the school's real domain.
+  String resolveUrl(String url) {
+    if (url.isEmpty || url.startsWith('http://') || url.startsWith('https://')) {
+      return url;
+    }
+    final base = _dio.options.baseUrl.replaceAll(RegExp(r'/+$'), '');
+    return url.startsWith('/') ? '$base$url' : '$base/$url';
+  }
+
   /// GET a whitelisted method. Frappe convention: GET for reads.
   Future<ApiResult<T>> get<T>(
     String module,
