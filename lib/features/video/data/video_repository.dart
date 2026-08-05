@@ -1,4 +1,5 @@
 import '../../../core/network/api_client.dart';
+import '../../student/domain/student_models.dart';
 
 /// Playback progress reporting.
 ///
@@ -10,6 +11,21 @@ class VideoRepository {
   final ApiClient api;
 
   static const int heartbeatSeconds = 10;
+
+  /// Re-resolve a lesson's playback descriptor on its own.
+  ///
+  /// `student.get_lesson` already embeds one, but a signed CDN URL expires
+  /// while the student is still watching. This asks for a fresh URL without
+  /// re-fetching — and re-rendering — the whole lesson underneath the player.
+  Future<VideoDescriptor> getPlayback(String lesson) async {
+    final result = await api.post<Map<String, dynamic>>(
+      'video',
+      'get_playback',
+      body: {'lesson': lesson},
+    );
+
+    return VideoDescriptor.fromJson(result.data);
+  }
 
   Future<VideoProgressUpdate> updateProgress({
     required String lesson,
