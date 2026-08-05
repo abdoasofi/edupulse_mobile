@@ -36,6 +36,7 @@ class LearningPathScreen extends ConsumerWidget {
                   index: entry.key + 1,
                   node: entry.value,
                   isNext: entry.value.lesson == data.nextLesson,
+                  course: course,
                 ),
               ),
             ],
@@ -89,19 +90,21 @@ class _MasteryHeader extends StatelessWidget {
   }
 }
 
-class _LessonTile extends StatelessWidget {
+class _LessonTile extends ConsumerWidget {
   const _LessonTile({
     required this.index,
     required this.node,
     required this.isNext,
+    required this.course,
   });
 
   final int index;
   final LessonNode node;
   final bool isNext;
+  final String course;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     final (icon, colour) = switch (node.state) {
@@ -123,7 +126,7 @@ class _LessonTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: node.isLocked
             ? () => _explainLock(context)
-            : () => context.go('/student/home/lesson/${node.lesson}'),
+            : () => _open(context, ref),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -179,6 +182,24 @@ class _LessonTile extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Open a lesson and refresh the path when the student comes back.
+  ///
+  /// `push`, not `go`: `go` REPLACES the stack, so the path the student was
+  /// standing on stopped existing the moment they opened a lesson, and backing
+  /// out of it dropped them at the student home — several steps from where
+  /// they were. That is the one navigation a learner does constantly.
+  ///
+  /// The invalidate is the other half. With `push` the path screen stays alive
+  /// underneath, so nothing refetches on its own: a student who just finished
+  /// a lesson would return to a list still showing it as unwatched, and the
+  /// next lesson still locked.
+  Future<void> _open(BuildContext context, WidgetRef ref) async {
+    await context.push('/student/home/lesson/${node.lesson}');
+
+    if (!context.mounted) return;
+    ref.invalidate(learningPathProvider(course));
   }
 
   void _explainLock(BuildContext context) {

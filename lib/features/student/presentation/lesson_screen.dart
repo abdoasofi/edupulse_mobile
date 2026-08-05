@@ -55,7 +55,7 @@ class _LessonScreenState extends ConsumerState<LessonScreen> {
               ? null
               : SnackBarAction(
                   label: 'ابدأ',
-                  onPressed: () => context.go('/student/home/quiz/$gateQuiz'),
+                  onPressed: () => context.push('/student/home/quiz/$gateQuiz'),
                 ),
         ),
       );
@@ -176,7 +176,11 @@ class _WatchGate extends StatelessWidget {
               FilledButton.icon(
                 icon: const Icon(Icons.quiz_outlined),
                 label: const Text('ابدأ الاختبار'),
-                onPressed: () => context.go('/student/home/quiz/$gateQuiz'),
+                // push, so abandoning the quiz returns to the lesson it gates
+                // rather than to the student home. The result screen still
+                // uses `go`, which is right: once a quiz is answered, "back"
+                // must not walk into it again.
+                onPressed: () => context.push('/student/home/quiz/$gateQuiz'),
               ),
           ],
         ),

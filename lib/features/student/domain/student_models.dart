@@ -61,6 +61,9 @@ class VideoDescriptor {
     this.resumeAt = 0,
     this.completed = false,
     this.poster,
+    this.provider,
+    this.offlineAllowed = false,
+    this.expiresIn,
   });
 
   final VideoKind kind;
@@ -72,7 +75,47 @@ class VideoDescriptor {
   final bool completed;
   final String? poster;
 
+  /// Which CDN produced this URL. The app never branches on it — it is carried
+  /// for diagnostics, so a support report says "Bunny" instead of "a URL".
+  final String? provider;
+
+  /// Whether this video may be cached on the device. Comes from the server so
+  /// twenty screens never have to know that YouTube's terms forbid downloads.
+  final bool offlineAllowed;
+
+  /// Seconds until a signed URL stops working, or null when it never does.
+  final int? expiresIn;
+
   bool get playable => kind != VideoKind.none && (url?.isNotEmpty ?? false);
+
+  /// The same descriptor, resumed at a given second.
+  ///
+  /// `get_playback` answers with the server's stored resume point, which lags
+  /// the position the student is actually at. Refreshing an expiring URL must
+  /// not rewind them to their last heartbeat.
+  VideoDescriptor resumedAt(double seconds) => VideoDescriptor(
+    kind: kind,
+    url: url,
+    duration: duration,
+    minWatchPercentage: minWatchPercentage,
+    watchedPercentage: watchedPercentage,
+    resumeAt: seconds,
+    completed: completed,
+    poster: poster,
+    provider: provider,
+    offlineAllowed: offlineAllowed,
+    expiresIn: expiresIn,
+  );
+
+  /// A signed URL must be re-resolved before it dies mid-lesson. Re-fetching a
+  /// little early is free; re-fetching late is a student staring at an error.
+  Duration? get refreshAfter {
+    final ttl = expiresIn;
+    if (ttl == null || ttl <= 0) return null;
+
+    final seconds = (ttl * 0.8).floor();
+    return Duration(seconds: seconds < 30 ? 30 : seconds);
+  }
 
   double get progress =>
       duration == 0 ? 0 : (watchedPercentage / 100).clamp(0, 1).toDouble();
@@ -89,6 +132,11 @@ class VideoDescriptor {
         resumeAt: asDouble(json['resume_at']),
         completed: asBool(json['completed']),
         poster: json['poster'] as String?,
+        provider: json['provider'] as String?,
+        offlineAllowed: asBool(json['offline_allowed']),
+        expiresIn: json['expires_in'] == null
+            ? null
+            : asInt(json['expires_in']),
       );
 }
 
