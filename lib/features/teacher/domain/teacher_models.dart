@@ -268,6 +268,7 @@ class UploadTarget {
     required this.accepts,
     required this.available,
     required this.offlineAllowed,
+    required this.maxBytes,
   });
 
   final String provider;
@@ -275,6 +276,13 @@ class UploadTarget {
   final UploadStrategy strategy;
   final String hint;
   final List<String> accepts;
+
+  /// The largest file the site will accept. Frappe caps the request body at
+  /// this size, so an oversized upload is severed by the WSGI layer: no error
+  /// reaches the server's own logs and there is nothing for it to explain
+  /// afterwards. Checking here is the only way a teacher learns the file is
+  /// too big before spending minutes pushing it up a school's uplink.
+  final int maxBytes;
 
   /// False for a provider whose handler is not written yet. The form is shown
   /// disabled rather than hidden: a teacher who cannot find the upload button
@@ -295,7 +303,20 @@ class UploadTarget {
         .toList(),
     available: json['available'] == true,
     offlineAllowed: json['offline_allowed'] == true,
+    // A server that predates this field must not be read as "zero bytes
+    // allowed", which would refuse every upload before it started.
+    maxBytes: asInt(json['max_upload_bytes']),
   );
+
+  /// Why this file cannot be sent, or null when it can.
+  String? rejects(int bytes) {
+    if (maxBytes <= 0 || bytes <= maxBytes) return null;
+
+    return 'حجم الملف ${_mb(bytes)} ميجابايت، والحدّ الأقصى ${_mb(maxBytes)}.\n'
+        'صوّر مقطعاً أقصر، أو اطلب من مسؤول المنصّة رفع الحدّ.';
+  }
+
+  static String _mb(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(0);
 }
 
 /// One row of the authoring list: a lesson and whatever video it already has.

@@ -137,12 +137,45 @@ class ApiClient {
         code: response.statusCode == 401
             ? ApiErrorCode.notAuthenticated
             : ApiErrorCode.serverError,
-        message: 'تعذّر رفع الملف إلى الموقع.',
+        // Say what the server said. A fixed string here hides a size cap, an
+        // expired session and a disk-full alike behind one sentence nobody can
+        // act on — which is exactly what sent a real upload failure to the
+        // logs to be diagnosed instead of to the person who could fix it.
+        message: _uploadFailure(body, response.statusCode),
         statusCode: response.statusCode,
       );
     }
 
     return url;
+  }
+
+  /// Pull a readable reason out of whatever Frappe answered with.
+  ///
+  /// An oversized body never reaches Frappe at all — the WSGI layer severs it
+  /// and returns 413 with no envelope — so that case is named explicitly
+  /// rather than left to fall through to the generic line.
+  String _uploadFailure(Object? body, int? status) {
+    if (status == 413) {
+      return 'الملف أكبر ممّا يقبله الموقع.';
+    }
+
+    if (body is Map) {
+      for (final key in ['_server_messages', 'exception', 'exc_type', 'message']) {
+        final raw = body[key];
+        if (raw is String && raw.trim().isNotEmpty) {
+          // Frappe wraps server messages as a JSON array of JSON strings.
+          final cleaned = raw
+              .replaceAll(RegExp(r'[\[\]"\\]'), '')
+              .replaceAll(RegExp(r'\{"message":\s*'), '')
+              .replaceAll(RegExp(r',\s*title:.*$'), '')
+              .replaceAll(RegExp(r'<[^>]+>'), '')
+              .trim();
+          if (cleaned.isNotEmpty) return cleaned;
+        }
+      }
+    }
+
+    return 'تعذّر رفع الملف إلى الموقع (${status ?? '—'}).';
   }
 
   Future<ApiResult<T>> _send<T>(Future<Response> Function() request) async {
