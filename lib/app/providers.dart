@@ -185,6 +185,19 @@ final masteryImpactProvider = FutureProvider.autoDispose
           ref.watch(teacherRepositoryProvider).impact(course: course),
     );
 
+final authoringLessonsProvider = FutureProvider.autoDispose
+    .family<List<AuthoringLesson>, String?>(
+      (ref, course) =>
+          ref.watch(teacherRepositoryProvider).lessons(course: course),
+    );
+
+/// How this school wants videos attached. Read once per screen, not per lesson:
+/// the answer is a tenant setting, and asking per row would be one request per
+/// lesson to learn the same thing.
+final uploadTargetProvider = FutureProvider.autoDispose<UploadTarget>(
+  (ref) => ref.watch(teacherRepositoryProvider).uploadTarget(),
+);
+
 // ────────────────────────── وحدة الإدارة والإشراف ──────────────────────────
 
 final adminRepositoryProvider = Provider<AdminRepository>(

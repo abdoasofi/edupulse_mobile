@@ -83,6 +83,68 @@ class ApiClient {
     () => _dio.post(_config.methodPath(module, method), data: _clean(body)),
   );
 
+  /// Upload a file to the site's own store and return the path it is served on.
+  ///
+  /// This is stock Frappe's `upload_file`, not one of ours. It answers with a
+  /// bare `{message: {...}}` and none of the `{ok, data}` envelope [_send]
+  /// unwraps, so routing it through [_send] would report every *successful*
+  /// upload as a server error.
+  Future<String> uploadFile({
+    required String path,
+    required String filename,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final form = FormData.fromMap({
+      'file': await MultipartFile.fromFile(path, filename: filename),
+      // Public: the player fetches `/files/x.mp4` with no session of its own,
+      // and a private file would 403 for every student.
+      'is_private': 0,
+      'folder': 'Home',
+    });
+
+    late final Response response;
+
+    try {
+      response = await _dio.post(
+        '/api/method/upload_file',
+        data: form,
+        options: Options(
+          contentType: 'multipart/form-data',
+          // A lesson video is tens of megabytes over a school's uplink. The
+          // 30-second default would abort uploads that were working fine, and
+          // the teacher would read it as the file being rejected.
+          sendTimeout: const Duration(minutes: 15),
+          receiveTimeout: const Duration(minutes: 15),
+        ),
+        onSendProgress: onProgress,
+      );
+    } on DioException catch (e) {
+      throw ApiException(
+        code: ApiErrorCode.network,
+        message: _networkMessage(e),
+        statusCode: e.response?.statusCode,
+      );
+    }
+
+    final body = response.data;
+    final message = (body is Map && body['message'] is Map)
+        ? Map<String, dynamic>.from(body['message'] as Map)
+        : const <String, dynamic>{};
+    final url = message['file_url'] as String?;
+
+    if (url == null || url.isEmpty) {
+      throw ApiException(
+        code: response.statusCode == 401
+            ? ApiErrorCode.notAuthenticated
+            : ApiErrorCode.serverError,
+        message: 'تعذّر رفع الملف إلى الموقع.',
+        statusCode: response.statusCode,
+      );
+    }
+
+    return url;
+  }
+
   Future<ApiResult<T>> _send<T>(Future<Response> Function() request) async {
     late final Response response;
 

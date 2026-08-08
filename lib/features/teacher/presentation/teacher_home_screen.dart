@@ -27,6 +27,11 @@ class TeacherHomeScreen extends ConsumerWidget {
         title: const Text('بوابة المعلم'),
         actions: [
           IconButton(
+            tooltip: 'فيديوهات الدروس',
+            icon: const Icon(Icons.video_library_outlined),
+            onPressed: () => context.push('/teacher/home/videos'),
+          ),
+          IconButton(
             tooltip: 'خروج',
             icon: const Icon(Icons.logout),
             onPressed: () => ref.read(authControllerProvider.notifier).logout(),

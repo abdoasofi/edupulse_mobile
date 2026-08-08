@@ -231,3 +231,114 @@ class MasteryImpact {
     );
   }
 }
+
+// --------------------------------------------------------------- تأليف الفيديو
+/// How this school expects a video to be attached.
+///
+/// The authoring UI renders from [strategy] alone and never learns a provider
+/// name. That is the whole point of the video-delivery layer: adding a sixth
+/// provider is a handler on the server, not a change to this screen.
+enum UploadStrategy {
+  /// Upload the file to the site itself.
+  siteFile('site_file'),
+
+  /// Paste a link — YouTube, or a URL the school already hosts.
+  externalUrl('external_url'),
+
+  /// Presigned PUT straight to the provider. No provider ships this yet.
+  directPost('direct_post'),
+
+  /// A strategy this build predates. Offer nothing rather than the wrong form.
+  unknown('');
+
+  const UploadStrategy(this.wire);
+
+  final String wire;
+
+  static UploadStrategy fromWire(String? value) => UploadStrategy.values
+      .firstWhere((s) => s.wire == value, orElse: () => UploadStrategy.unknown);
+}
+
+class UploadTarget {
+  const UploadTarget({
+    required this.provider,
+    required this.providerLabel,
+    required this.strategy,
+    required this.hint,
+    required this.accepts,
+    required this.available,
+    required this.offlineAllowed,
+  });
+
+  final String provider;
+  final String providerLabel;
+  final UploadStrategy strategy;
+  final String hint;
+  final List<String> accepts;
+
+  /// False for a provider whose handler is not written yet. The form is shown
+  /// disabled rather than hidden: a teacher who cannot find the upload button
+  /// files a bug, one who is told the school's provider is not ready yet does
+  /// something about it.
+  final bool available;
+  final bool offlineAllowed;
+
+  bool get canUpload => available && strategy != UploadStrategy.unknown;
+
+  factory UploadTarget.fromJson(Map<String, dynamic> json) => UploadTarget(
+    provider: (json['provider'] as String?) ?? '',
+    providerLabel: (json['provider_label'] as String?) ?? '',
+    strategy: UploadStrategy.fromWire(json['strategy'] as String?),
+    hint: (json['hint_ar'] as String?) ?? '',
+    accepts: ((json['accepts'] as List?) ?? const [])
+        .map((e) => e.toString())
+        .toList(),
+    available: json['available'] == true,
+    offlineAllowed: json['offline_allowed'] == true,
+  );
+}
+
+/// One row of the authoring list: a lesson and whatever video it already has.
+class AuthoringLesson {
+  const AuthoringLesson({
+    required this.lesson,
+    required this.title,
+    required this.course,
+    required this.courseTitle,
+    required this.skill,
+    required this.isRemedial,
+    required this.hasVideo,
+    required this.provider,
+    required this.providerLabel,
+    required this.duration,
+  });
+
+  final String lesson;
+  final String title;
+  final String course;
+  final String courseTitle;
+  final String? skill;
+  final bool isRemedial;
+  final bool hasVideo;
+
+  /// The lesson's own stamp, not the school's current default. A library
+  /// uploaded to YouTube and then re-pointed at Drive still plays from
+  /// YouTube, and this is what says so.
+  final String? provider;
+  final String? providerLabel;
+  final int duration;
+
+  factory AuthoringLesson.fromJson(Map<String, dynamic> json) =>
+      AuthoringLesson(
+        lesson: (json['lesson'] as String?) ?? '',
+        title: (json['title'] as String?) ?? '',
+        course: (json['course'] as String?) ?? '',
+        courseTitle: (json['course_title'] as String?) ?? '',
+        skill: json['skill'] as String?,
+        isRemedial: asInt(json['is_remedial']) == 1,
+        hasVideo: json['has_video'] == true,
+        provider: json['provider'] as String?,
+        providerLabel: json['provider_label'] as String?,
+        duration: asInt(json['duration']),
+      );
+}
