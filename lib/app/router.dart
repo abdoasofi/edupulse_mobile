@@ -15,6 +15,7 @@ import '../features/student/presentation/lesson_screen.dart';
 import '../features/student/presentation/student_home_screen.dart';
 import '../features/teacher/presentation/class_screen.dart';
 import '../features/teacher/presentation/struggling_screen.dart';
+import '../features/teacher/presentation/video_authoring_screen.dart';
 import '../features/teacher/presentation/teacher_home_screen.dart';
 import '../shared/widgets/placeholder_screen.dart';
 import 'providers.dart';
@@ -136,6 +137,11 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: 'struggling',
             builder: (_, s) =>
                 StrugglingScreen(course: s.uri.queryParameters['course']),
+          ),
+          GoRoute(
+            path: 'videos',
+            builder: (_, s) =>
+                VideoAuthoringScreen(course: s.uri.queryParameters['course']),
           ),
         ],
       ),
