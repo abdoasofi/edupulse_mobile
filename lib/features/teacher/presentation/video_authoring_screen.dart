@@ -363,8 +363,18 @@ class _AttachSheetState extends ConsumerState<_AttachSheet> {
             children: [
               const Icon(Icons.check_circle, size: 15, color: Colors.green),
               const SizedBox(width: 6),
+              // A filename is LTR text. Left to the ambient RTL direction the
+              // bidi algorithm moves the extension to the front, and
+              // "1000024789.mp4" is shown as "mp4.1000024789" — a teacher
+              // checking they picked the right file cannot read it.
               Expanded(
-                child: Text(_pickedName!, style: theme.textTheme.bodySmall),
+                child: Text(
+                  _pickedName!,
+                  style: theme.textTheme.bodySmall,
+                  textDirection: TextDirection.ltr,
+                  textAlign: TextAlign.left,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
@@ -407,6 +417,21 @@ class _AttachSheetState extends ConsumerState<_AttachSheet> {
   Future<void> _pick(ImageSource source) async {
     final file = await ImagePicker().pickVideo(source: source);
     if (file == null) return;
+
+    // Check the size here, not after the upload. Frappe severs an oversized
+    // request body at the WSGI layer, so the failure arrives with no reason
+    // attached — and by then the teacher has already waited through it.
+    final tooBig = widget.target.rejects(await file.length());
+    if (tooBig != null) {
+      if (mounted) {
+        setState(() {
+          _pickedPath = null;
+          _pickedName = null;
+          _error = tooBig;
+        });
+      }
+      return;
+    }
 
     setState(() {
       _pickedPath = file.path;
