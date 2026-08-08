@@ -9,10 +9,13 @@ import 'package:edupulse_mobile/features/teacher/domain/teacher_models.dart';
 /// run the same binary. If this mapping is ever wrong, a teacher is shown a
 /// form that cannot produce a reference their school's provider accepts.
 void main() {
+  const mb = 1024 * 1024;
+
   Map<String, dynamic> wire({
     String? strategy = 'site_file',
     bool available = true,
     String provider = 'Frappe Drive',
+    Object? maxBytes = 500 * mb,
   }) => {
     'provider': provider,
     'provider_label': 'ملفات الموقع',
@@ -21,6 +24,7 @@ void main() {
     'accepts': ['video/mp4'],
     'available': available,
     'offline_allowed': true,
+    'max_upload_bytes': maxBytes,
   };
 
   group('strategy mapping', () {
@@ -53,6 +57,34 @@ void main() {
       // `available` answers "is the provider built?", not "can THIS app talk to
       // it?". An older app against a newer server must not guess.
       expect(UploadTarget.fromJson(wire(strategy: 'presigned_v2')).canUpload, false);
+    });
+  });
+
+  group('size guard', () {
+    test('a file within the limit is accepted', () {
+      expect(UploadTarget.fromJson(wire()).rejects(200 * mb), isNull);
+    });
+
+    test('a file at exactly the limit is accepted', () {
+      // Frappe compares with `>`, so the boundary itself is allowed. Refusing
+      // it here would reject a file the server would have taken.
+      expect(UploadTarget.fromJson(wire(maxBytes: 25 * mb)).rejects(25 * mb), isNull);
+    });
+
+    test('an oversized file is refused with both numbers in the message', () {
+      // "Upload failed" sends the teacher to support. The size and the cap
+      // send them to a shorter recording, which they can do immediately.
+      final why = UploadTarget.fromJson(wire(maxBytes: 25 * mb)).rejects(42 * mb);
+
+      expect(why, isNotNull);
+      expect(why, contains('42'));
+      expect(why, contains('25'));
+    });
+
+    test('a server that omits the limit does not block every upload', () {
+      // Reading a missing field as zero would refuse everything, turning an
+      // older server into an app with no upload at all.
+      expect(UploadTarget.fromJson(wire(maxBytes: null)).rejects(900 * mb), isNull);
     });
   });
 
