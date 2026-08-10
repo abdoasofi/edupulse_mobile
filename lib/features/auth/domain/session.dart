@@ -132,10 +132,22 @@ class Unauthenticated extends AuthState {
 }
 
 class Authenticated extends AuthState {
-  const Authenticated({required this.user, required this.tenant});
+  const Authenticated({
+    required this.user,
+    required this.tenant,
+    this.offline = false,
+  });
 
   final UserProfile user;
   final TenantConfig tenant;
+
+  /// Restored from cache because the site could not be reached.
+  ///
+  /// Everything on screen is as old as the last successful sync, and every
+  /// call that is not served from the device will fail — so the app owes the
+  /// user a standing statement of that, not a screen of stale numbers
+  /// presented as current.
+  final bool offline;
 }
 
 class UpgradeRequired extends AuthState {
