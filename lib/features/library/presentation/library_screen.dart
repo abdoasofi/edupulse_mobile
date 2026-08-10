@@ -41,12 +41,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     downloadedOnly: _downloadedOnly,
   );
 
-  Future<void> _sync({bool quiet = false}) async {
+  Future<void> _sync({bool quiet = false, bool full = false}) async {
     final messenger = ScaffoldMessenger.of(context);
 
     try {
       final repo = await ref.read(libraryRepositoryProvider.future);
-      final report = await repo.sync();
+      final report = await repo.sync(full: full);
 
       if (!mounted) return;
       ref
@@ -84,6 +84,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             tooltip: 'تحديث المكتبة',
             icon: const Icon(Icons.sync),
             onPressed: _sync,
+          ),
+          // The escape hatch for a change the delta cannot carry: renaming a
+          // subject on the server rewrites every row that points at it without
+          // touching `modified`, so an ordinary sync will never learn of it and
+          // the phone shows the old label indefinitely.
+          PopupMenuButton<void>(
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                onTap: () => _sync(full: true),
+                child: const ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.restart_alt),
+                  title: Text('إعادة بناء المكتبة'),
+                  subtitle: Text('يبقى ما نزّلته على جهازك'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

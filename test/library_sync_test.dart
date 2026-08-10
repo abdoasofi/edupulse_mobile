@@ -160,6 +160,58 @@ void main() {
       expect(await cache.count(), 0);
     });
 
+    test('a rebuild drops what the server no longer lists', () async {
+      // The repair for a change the delta cannot carry — a renamed subject
+      // rewrites rows by SQL and leaves `modified` untouched, so no delta will
+      // ever mention it.
+      final first = _FakeApi(pages: [_page(['a', 'b'])]);
+      await repo(first).sync();
+
+      final second = _FakeApi(pages: [_page(['a'])]);
+      final report = await repo(second).sync(full: true);
+
+      expect(report.removed, 1);
+      expect(await cache.count(), 1);
+      expect(second.cursors, [null]);
+    });
+
+    test('a rebuild keeps the files already downloaded', () async {
+      // Wiping first would cost a student every worksheet on their phone to
+      // fix a label.
+      final api = _FakeApi(
+        pages: [
+          _page(['a'], attachment: '/files/a.pdf'),
+          _page(['a'], attachment: '/files/a.pdf'),
+        ],
+        bytes: 120,
+      );
+      await repo(api).sync();
+      await repo(api).download('a');
+
+      await repo(api).sync(full: true);
+
+      final item = await cache.item('a');
+      expect(item!.isDownloaded, isTrue);
+      expect(File(item.localPath!).existsSync(), isTrue);
+    });
+
+    test('a rebuild cut short by the page bound prunes nothing', () async {
+      // It has not seen the rest of the library; deleting what it did not
+      // reach would be the bug it exists to repair.
+      await repo(_FakeApi(pages: [_page(['a', 'b'])])).sync();
+
+      final truncated = _FakeApi(
+        pages: List.generate(
+          20,
+          (i) => _page(['a'], hasMore: true, cursor: 'T$i'),
+        ),
+      );
+      final report = await repo(truncated).sync(full: true);
+
+      expect(report.removed, 0);
+      expect(await cache.count(), 2);
+    });
+
     test('a page that fails keeps the pages that did not', () async {
       // Partly up to date is the normal state of an app like this; throwing
       // away three good pages because the fourth timed out is not.
