@@ -196,7 +196,10 @@ class ApiClient {
     if (body is! Map) {
       throw ApiException(
         code: ApiErrorCode.serverError,
-        message: 'Malformed response from server.',
+        message: wrongAddressMessage(
+          response.requestOptions.uri.authority,
+          response.statusCode,
+        ),
         statusCode: response.statusCode,
       );
     }
@@ -274,4 +277,24 @@ class ApiClient {
         if (entry.value != null) entry.key: entry.value,
     };
   }
+}
+
+/// A reply that is not JSON means we reached *a* server, but not this
+/// school's site.
+///
+/// This used to read "Malformed response from server." — English, on an
+/// otherwise Arabic screen, and it describes a broken platform when the
+/// ordinary cause is a mistyped address: Frappe answers an unknown host with
+/// an HTML 404 saying the site does not exist. Every school types this address
+/// by hand on the login screen, so it is the first failure a new one meets,
+/// before anything else has had a chance to work.
+String wrongAddressMessage(String host, int? status) {
+  final where = host.isEmpty ? 'هذا العنوان' : host;
+
+  if (status == 404) {
+    return 'لا يوجد موقع مدرسة على العنوان $where. تأكّد من عنوان المدرسة.';
+  }
+
+  return 'العنوان $where يردّ بما لا نفهمه (${status ?? '—'}). '
+      'تأكّد من عنوان المدرسة.';
 }
