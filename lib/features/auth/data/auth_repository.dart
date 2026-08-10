@@ -117,7 +117,14 @@ class AuthRepository {
     } on ApiException {
       // A failed server logout must never trap the user in the app.
     } finally {
-      await Future.wait([tokens.clear(), cache.clear()]);
+      // Sequential, and in this order. `tokens.clear()` is a `deleteAll()`
+      // that then writes the school address back, because losing it strands
+      // the user on a login screen asking for a URL they may never have typed
+      // — the app filled it in. Running it concurrently with another handle's
+      // delete on the same store puts that restore in a race it does not have
+      // to be in.
+      await cache.clear();
+      await tokens.clear();
     }
   }
 
