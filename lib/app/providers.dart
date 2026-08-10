@@ -9,6 +9,8 @@ import '../features/admin/data/admin_repository.dart';
 import '../features/admin/domain/admin_models.dart';
 import '../features/auth/data/auth_repository.dart';
 import '../features/auth/domain/session.dart';
+import '../features/parent/data/parent_repository.dart';
+import '../features/parent/domain/parent_models.dart';
 import '../features/quiz/data/quiz_repository.dart';
 import '../features/remedial/data/remedial_repository.dart';
 import '../features/remedial/domain/remedial_models.dart';
@@ -197,6 +199,38 @@ final authoringLessonsProvider = FutureProvider.autoDispose
 final uploadTargetProvider = FutureProvider.autoDispose<UploadTarget>(
   (ref) => ref.watch(teacherRepositoryProvider).uploadTarget(),
 );
+
+// ──────────────────────────── وحدة ولي الأمر ────────────────────────────
+
+final parentRepositoryProvider = Provider<ParentRepository>(
+  (ref) => ParentRepository(ref.watch(apiClientProvider)),
+);
+
+final childrenProvider = FutureProvider.autoDispose<List<Child>>(
+  (ref) => ref.watch(parentRepositoryProvider).children(),
+);
+
+/// Keyed by (child, window) so switching 7/30 days refetches rather than
+/// reusing the answer to a different question — and so two children on one
+/// guardian's account never share a cache entry.
+typedef ChildWindow = ({String student, int days});
+
+final childSummaryProvider = FutureProvider.autoDispose
+    .family<ChildSummary, ChildWindow>(
+      (ref, key) => ref
+          .watch(parentRepositoryProvider)
+          .summary(key.student, days: key.days),
+    );
+
+final childFlaggedProvider = FutureProvider.autoDispose
+    .family<FlaggedSubjects, String>(
+      (ref, student) => ref.watch(parentRepositoryProvider).flagged(student),
+    );
+
+final childTrendProvider = FutureProvider.autoDispose
+    .family<List<MasteryTrend>, String>(
+      (ref, student) => ref.watch(parentRepositoryProvider).trend(student),
+    );
 
 // ────────────────────────── وحدة الإدارة والإشراف ──────────────────────────
 
