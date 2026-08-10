@@ -129,20 +129,47 @@ class ApiClient {
 
     if (status != 200) {
       await _discard(savePath);
-
-      throw ApiException(
-        code: status == 401 || status == 403
-            ? ApiErrorCode.notAuthenticated
-            : ApiErrorCode.notFound,
-        message: status == 401 || status == 403
-            ? 'انتهت صلاحية الجلسة، سجّل الدخول مجدداً لتنزيل الملف.'
-            : 'الملف لم يعد موجوداً على موقع المدرسة.',
-        statusCode: status,
-      );
+      throw _downloadFailure(status);
     }
 
     final file = File(savePath);
     return file.existsSync() ? file.lengthSync() : 0;
+  }
+
+  /// Say which thing went wrong, because they send you to different places.
+  ///
+  /// This shipped as one line — "الملف لم يعد موجوداً على موقع المدرسة" — for
+  /// every status that was not 200, and the first real failure it met was a
+  /// 500 on a file that was sitting right there on the server. The message
+  /// asserted the one thing that was not true, and it sent the person reading
+  /// it to look at the library instead of at the site.
+  ApiException _downloadFailure(int status) {
+    if (status == 401 || status == 403) {
+      return ApiException(
+        code: ApiErrorCode.notAuthenticated,
+        message: 'انتهت صلاحية الجلسة، سجّل الدخول مجدداً لتنزيل الملف.',
+        statusCode: status,
+      );
+    }
+
+    if (status == 404 || status == 410) {
+      return ApiException(
+        code: ApiErrorCode.notFound,
+        message: 'الملف لم يعد موجوداً على موقع المدرسة.',
+        statusCode: status,
+      );
+    }
+
+    // The site answered, and failed. Naming the status is what turns "it did
+    // not work" into something the school's administrator can act on.
+    return ApiException(
+      code: ApiErrorCode.serverError,
+      message: status >= 500
+          ? 'موقع المدرسة لم يستطع إرسال الملف ($status). الملف موجود، والخلل '
+                'في الخادم.'
+          : 'تعذّر تنزيل الملف من موقع المدرسة ($status).',
+      statusCode: status,
+    );
   }
 
   Future<void> _discard(String path) async {
