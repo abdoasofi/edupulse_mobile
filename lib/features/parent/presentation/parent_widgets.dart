@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../shared/arabic.dart' as ar;
 import '../domain/parent_models.dart';
 
 /// The colour a child's state is allowed to use.
@@ -75,12 +76,11 @@ class ChildCard extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (child.flaggedCount > 0) ...[
+                        if (child.flaggedCount > 0)
                           Text(
-                            ' · ${child.flaggedCount} مهارات',
+                            ' · ${ar.counted(child.flaggedCount, ar.skills)}',
                             style: theme.textTheme.bodySmall,
                           ),
-                        ],
                       ],
                     ),
                   ],
@@ -241,7 +241,7 @@ class TrendBar extends StatelessWidget {
                 child: Text(row.skillName, style: theme.textTheme.bodyMedium),
               ),
               Text(
-                gained ? '+${row.gain.round()}' : '${row.gain.round()}',
+                ar.signed(row.gain),
                 style: theme.textTheme.labelLarge?.copyWith(
                   color: gained
                       ? const Color(0xFF10B981)

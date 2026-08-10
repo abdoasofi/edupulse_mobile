@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/providers.dart';
+import '../../../shared/arabic.dart' as ar;
 import '../../../shared/widgets/async_view.dart';
 import '../domain/parent_models.dart';
 import 'parent_widgets.dart';
@@ -317,7 +318,7 @@ class _IsItWorking extends ConsumerWidget {
             Text('هل يتحسّن؟', style: theme.textTheme.titleMedium),
             const SizedBox(height: 4),
             Text(
-              'تحسّن في $gained من ${moved.length} مهارة منذ البداية',
+              'تحسّن في $gained من ${ar.counted(moved.length, ar.skills)} منذ البداية',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 12),
