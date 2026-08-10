@@ -52,12 +52,14 @@ class LibraryRepository {
   /// not throw them away. Being partly up to date is the normal state of an
   /// app like this.
   Future<SyncReport> sync({bool full = false}) async {
-    if (full) await cache.wipe();
-
     var cursor = full ? null : await cache.cursor;
     var pages = 0;
     var received = 0;
     var removed = 0;
+    var reachedEnd = false;
+
+    // Only a full walk knows what the server no longer has.
+    final seen = <String>{};
 
     while (pages < _maxPages) {
       final result = await api.get<Map<String, dynamic>>(
@@ -83,16 +85,26 @@ class LibraryRepository {
       received += rows.length;
       pages++;
 
+      if (full) seen.addAll(rows.map((r) => r['name'] as String));
+
       final next = data['synced_at'] as String?;
       if (next != null) await cache.setCursor(next);
 
       // Stop on the last page, and on a cursor that did not move — the second
       // is the only thing standing between a server bug and an infinite loop
       // on a student's data plan.
-      if (data['has_more'] != true || next == null || next == cursor) break;
+      if (data['has_more'] != true || next == null || next == cursor) {
+        reachedEnd = data['has_more'] != true;
+        break;
+      }
 
       cursor = next;
     }
+
+    // Only prune on a walk that actually finished. A full sync cut short by
+    // the page bound has not seen the rest of the library, and deleting
+    // everything it did not reach would be the bug it exists to repair.
+    if (full && reachedEnd) removed += await cache.retainOnly(seen);
 
     return SyncReport(pages: pages, received: received, removed: removed);
   }

@@ -147,6 +147,35 @@ class LibraryCache {
     return removed;
   }
 
+  /// Delete everything the server did not just list, files included.
+  ///
+  /// The repair for a change the delta structurally cannot carry. Frappe
+  /// updates link fields with plain SQL — renaming a subject rewrites every
+  /// row that points at it and leaves `modified` exactly where it was — so the
+  /// device is never told, and shows the old label forever. The same is true
+  /// of any bulk update or restore. Rebuilding from a full walk is the only
+  /// answer that does not depend on the server having remembered to touch a
+  /// timestamp.
+  ///
+  /// Deliberately not a wipe-and-refetch: that would cost the student every
+  /// file they downloaded to fix a label. Rows are upserted, so a download
+  /// survives unless its own version moved.
+  Future<int> retainOnly(Set<String> names) async {
+    final db = await _db;
+
+    final stale = (await db.query('library_item', columns: ['name']))
+        .map((r) => r['name'] as String)
+        .where((name) => !names.contains(name))
+        .toList();
+
+    for (final name in stale) {
+      await _deleteFileOf(db, name);
+      await db.delete('library_item', where: 'name = ?', whereArgs: [name]);
+    }
+
+    return stale.length;
+  }
+
   /// Everything the device holds, newest first, filtered the way the screen
   /// filters.
   Future<List<LibraryItem>> items({
