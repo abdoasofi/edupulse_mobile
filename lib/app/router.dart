@@ -8,6 +8,8 @@ import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/upgrade_screen.dart';
+import '../features/parent/presentation/child_screen.dart';
+import '../features/parent/presentation/parent_home_screen.dart';
 import '../features/quiz/presentation/quiz_screen.dart';
 import '../features/remedial/presentation/remedial_screen.dart';
 import '../features/student/presentation/learning_path_screen.dart';
@@ -110,13 +112,15 @@ final routerProvider = Provider<GoRouter>((ref) {
       // ------------------------------------------- بوابة ولي الأمر
       GoRoute(
         path: '/parent/home',
-        builder: (_, _) => const PlaceholderScreen(title: 'Parent Home'),
+        builder: (_, _) => const ParentHomeScreen(),
         routes: [
+          // push, not go: a guardian with three children opens one, reads it
+          // and comes back — replacing the stack would send them to the
+          // splash screen instead of the list they started from.
           GoRoute(
             path: 'child/:student',
-            builder: (_, s) => PlaceholderScreen(
-              title: 'Child ${s.pathParameters['student']}',
-            ),
+            builder: (_, s) =>
+                ChildScreen(student: s.pathParameters['student']!),
           ),
         ],
       ),
