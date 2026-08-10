@@ -213,7 +213,11 @@ class _LessonTile extends ConsumerWidget {
     );
 
     if (changed == true) {
-      ref.invalidate(authoringLessonsProvider(course));
+      ref
+        ..invalidate(authoringLessonsProvider(course))
+        // The upload just consumed part of the school's quota. Without this
+        // the next sheet opens with the figure from before it.
+        ..invalidate(uploadTargetProvider);
     }
   }
 }
@@ -356,6 +360,32 @@ class _AttachSheetState extends ConsumerState<_AttachSheet> {
           ),
         ],
       ),
+      if (widget.target.storageNotice != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              Icon(
+                Icons.cloud_outlined,
+                size: 15,
+                color: (widget.target.storageLeftBytes ?? 1) <= 0
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  widget.target.storageNotice!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: (widget.target.storageLeftBytes ?? 1) <= 0
+                        ? theme.colorScheme.error
+                        : null,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       if (_pickedName != null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
