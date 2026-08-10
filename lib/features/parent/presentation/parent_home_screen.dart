@@ -88,6 +88,24 @@ class ParentHomeScreen extends ConsumerWidget {
   }
 }
 
+/// The one sentence the whole screen exists to say.
+///
+/// Written per case rather than by interpolation: a guardian with one child
+/// was told "جميع أبنائك يحتاجون متابعة", which is both wrong and slightly
+/// alarming — it implies siblings they do not have.
+String _headline(int total, int needing) {
+  if (needing == 0) {
+    return total == 1
+        ? 'لا شيء يستدعي القلق اليوم.'
+        : 'لا شيء يستدعي القلق اليوم لدى أيٍّ من أبنائك.';
+  }
+
+  if (total == 1) return 'ابنك يحتاج متابعة هذا الأسبوع.';
+  if (needing == total) return 'جميع أبنائك يحتاجون متابعة هذا الأسبوع.';
+
+  return '$needing من $total يحتاجون متابعة هذا الأسبوع.';
+}
+
 class _Greeting extends StatelessWidget {
   const _Greeting({
     required this.name,
@@ -115,13 +133,7 @@ class _Greeting extends StatelessWidget {
         // The headline is a sentence, not a statistic. "٢ من ٣ يحتاجون
         // متابعة" is a thing a parent can act on; "متوسط الإتقان ٦٤٪" is not.
         Text(
-          calm
-              ? children.length == 1
-                    ? 'لا شيء يستدعي القلق اليوم.'
-                    : 'لا شيء يستدعي القلق اليوم لدى أيٍّ من أبنائك.'
-              : needing == children.length
-              ? 'جميع أبنائك يحتاجون متابعة هذا الأسبوع.'
-              : '$needing من ${children.length} يحتاجون متابعة هذا الأسبوع.',
+          _headline(children.length, needing),
           style: theme.textTheme.bodyLarge?.copyWith(
             color: calm
                 ? const Color(0xFF10B981)
