@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 
 import '../config/app_config.dart';
@@ -82,6 +84,71 @@ class ApiClient {
   }) => _send<T>(
     () => _dio.post(_config.methodPath(module, method), data: _clean(body)),
   );
+
+  /// Stream a site-hosted file to [savePath] and return its size in bytes.
+  ///
+  /// Guards the one trap in downloading from a client configured like this
+  /// one: `validateStatus` deliberately accepts every status below 600 so the
+  /// error *envelope* can be parsed instead of thrown. On a download there is
+  /// no envelope — a 404 or a 403 is an HTML page, and Dio writes it to the
+  /// file like any other body. Without the status check the student ends up
+  /// with a "worksheet" that is Frappe's login page, saved, and marked
+  /// available offline.
+  Future<int> downloadFile({
+    required String url,
+    required String savePath,
+    void Function(int received, int total)? onProgress,
+    CancelToken? cancelToken,
+  }) async {
+    late final Response response;
+
+    try {
+      response = await _dio.download(
+        resolveUrl(url),
+        savePath,
+        onReceiveProgress: onProgress,
+        cancelToken: cancelToken,
+        options: Options(
+          // A worksheet over a school's uplink is not a 30-second request.
+          receiveTimeout: const Duration(minutes: 10),
+        ),
+      );
+    } on DioException catch (e) {
+      await _discard(savePath);
+
+      if (CancelToken.isCancel(e)) rethrow;
+
+      throw ApiException(
+        code: ApiErrorCode.network,
+        message: _networkMessage(e),
+        statusCode: e.response?.statusCode,
+      );
+    }
+
+    final status = response.statusCode ?? 0;
+
+    if (status != 200) {
+      await _discard(savePath);
+
+      throw ApiException(
+        code: status == 401 || status == 403
+            ? ApiErrorCode.notAuthenticated
+            : ApiErrorCode.notFound,
+        message: status == 401 || status == 403
+            ? 'انتهت صلاحية الجلسة، سجّل الدخول مجدداً لتنزيل الملف.'
+            : 'الملف لم يعد موجوداً على موقع المدرسة.',
+        statusCode: status,
+      );
+    }
+
+    final file = File(savePath);
+    return file.existsSync() ? file.lengthSync() : 0;
+  }
+
+  Future<void> _discard(String path) async {
+    final file = File(path);
+    if (file.existsSync()) await file.delete();
+  }
 
   /// Upload a file to the site's own store and return the path it is served on.
   ///

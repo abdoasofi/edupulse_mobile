@@ -8,6 +8,8 @@ import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/splash_screen.dart';
 import '../features/auth/presentation/upgrade_screen.dart';
+import '../features/library/presentation/library_item_screen.dart';
+import '../features/library/presentation/library_screen.dart';
 import '../features/parent/presentation/child_screen.dart';
 import '../features/parent/presentation/parent_home_screen.dart';
 import '../features/quiz/presentation/quiz_screen.dart';
@@ -21,6 +23,9 @@ import '../features/teacher/presentation/video_authoring_screen.dart';
 import '../features/teacher/presentation/teacher_home_screen.dart';
 import '../shared/widgets/placeholder_screen.dart';
 import 'providers.dart';
+
+/// The one screen that works without a server.
+const _offlineHome = '/student/home/library';
 
 /// Role-based routing.
 ///
@@ -56,7 +61,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       if (auth is Authenticated) {
-        final home = auth.user.persona.homeRoute;
+        // Restored from cache with no server behind it. The library is the
+        // only screen that works, so it is the only screen offered — a home
+        // page of failing cards would be a worse answer than the one place
+        // the app can still deliver.
+        final home = auth.offline
+            ? _offlineHome
+            : auth.user.persona.homeRoute;
+
+        // The subtree, not the one route: an item opened offline is exactly
+        // what the download was for.
+        if (auth.offline && !location.startsWith(_offlineHome)) {
+          return _offlineHome;
+        }
 
         // Bounce away from the pre-auth screens.
         if (location == '/splash' ||
@@ -104,7 +121,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: 'library',
-            builder: (_, _) => const PlaceholderScreen(title: 'مكتبة إدو بلس'),
+            builder: (_, _) => const LibraryScreen(),
+            routes: [
+              GoRoute(
+                path: 'item/:item',
+                builder: (_, s) =>
+                    LibraryItemScreen(item: s.pathParameters['item']!),
+              ),
+            ],
           ),
         ],
       ),

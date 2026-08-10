@@ -1,14 +1,23 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../core/config/app_config.dart';
 import '../core/network/api_client.dart';
 import '../core/network/api_result.dart';
+import '../core/offline/library_cache.dart';
+import '../core/offline/offline_database.dart';
 import '../core/storage/token_store.dart';
 import '../features/admin/data/admin_repository.dart';
 import '../features/admin/domain/admin_models.dart';
 import '../features/auth/data/auth_repository.dart';
+import '../features/auth/data/session_cache.dart';
 import '../features/auth/domain/session.dart';
+import '../features/library/data/library_repository.dart';
+import '../features/library/domain/library_item.dart';
 import '../features/parent/data/parent_repository.dart';
 import '../features/parent/domain/parent_models.dart';
 import '../features/quiz/data/quiz_repository.dart';
@@ -35,11 +44,77 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   );
 });
 
+final sessionCacheProvider = Provider<SessionCache>((ref) => SessionCache());
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   return AuthRepository(
     api: ref.watch(apiClientProvider),
     tokens: ref.watch(tokenStoreProvider),
+    cache: ref.watch(sessionCacheProvider),
   );
+});
+
+// --------------------------------------------------------- المكتبة دون اتصال
+
+final offlineDatabaseProvider = Provider<OfflineDatabase>((ref) {
+  final database = OfflineDatabase();
+  ref.onDispose(database.close);
+  return database;
+});
+
+/// Where downloaded attachments live.
+///
+/// Application *support*, not the cache directory: both platforms reclaim the
+/// cache directory under storage pressure without asking, which would delete
+/// the library of the student least able to re-download it.
+final downloadDirectoryProvider = FutureProvider<Directory>((ref) async {
+  final base = await getApplicationSupportDirectory();
+  return Directory(p.join(base.path, 'library'));
+});
+
+final libraryCacheProvider = FutureProvider<LibraryCache>((ref) async {
+  return LibraryCache(
+    database: ref.watch(offlineDatabaseProvider),
+    downloads: await ref.watch(downloadDirectoryProvider.future),
+  );
+});
+
+final libraryRepositoryProvider = FutureProvider<LibraryRepository>((
+  ref,
+) async {
+  return LibraryRepository(
+    api: ref.watch(apiClientProvider),
+    cache: await ref.watch(libraryCacheProvider.future),
+  );
+});
+
+/// The filters the library screen is showing, as a provider key.
+typedef LibraryQuery = ({String? itemType, String search, bool downloadedOnly});
+
+final libraryItemsProvider = FutureProvider.autoDispose
+    .family<List<LibraryItem>, LibraryQuery>((ref, query) async {
+      final repo = await ref.watch(libraryRepositoryProvider.future);
+
+      return repo.items(
+        itemType: query.itemType,
+        search: query.search,
+        downloadedOnly: query.downloadedOnly,
+      );
+    });
+
+/// Reading an item is also what marks it recently used, which is what keeps
+/// eviction from taking the thing the student actually studies.
+final libraryItemProvider = FutureProvider.autoDispose
+    .family<LibraryItem?, String>((ref, name) async {
+      final repo = await ref.watch(libraryRepositoryProvider.future);
+      return repo.open(name);
+    });
+
+final libraryUsageProvider = FutureProvider.autoDispose<StorageUsage>((
+  ref,
+) async {
+  final repo = await ref.watch(libraryRepositoryProvider.future);
+  return repo.usage();
 });
 
 final appVersionProvider = FutureProvider<String>((ref) async {
@@ -64,16 +139,37 @@ class AuthController extends StateNotifier<AuthState> {
     }
 
     try {
-      state = await _repo.bootstrap(appVersion: await _version());
+      state = await _bind(await _repo.bootstrap(appVersion: await _version()));
     } on ApiException catch (e) {
       if (e.code == ApiErrorCode.appUpgradeRequired) {
         state = UpgradeRequired(e.message);
       } else if (e.isAuthFailure) {
         await _repo.logout();
         state = const Unauthenticated(message: 'انتهت الجلسة، سجّل الدخول مجدداً.');
+      } else if (e.code == ApiErrorCode.network) {
+        state = await _offline() ?? Unauthenticated(message: e.message);
       } else {
         state = Unauthenticated(message: e.message);
       }
+    }
+  }
+
+  /// The stored session, but only when there is something behind it.
+  ///
+  /// Letting anyone in offline would open a home screen whose every card
+  /// fails, which is a worse answer than the login screen naming the address
+  /// it could not reach. So this is deliberately narrow: a student, with a
+  /// library already on the device. Nobody else has anything to see.
+  Future<Authenticated?> _offline() async {
+    final session = await _repo.cachedSession();
+
+    if (session == null || session.user.persona != Persona.student) return null;
+
+    try {
+      final cache = await _ref.read(libraryCacheProvider.future);
+      return await cache.count() > 0 ? session : null;
+    } catch (_) {
+      return null;
     }
   }
 
@@ -86,7 +182,7 @@ class AuthController extends StateNotifier<AuthState> {
         password: password,
         appVersion: await _version(),
       );
-      state = await _repo.bootstrap(appVersion: await _version());
+      state = await _bind(await _repo.bootstrap(appVersion: await _version()));
     } on ApiException catch (e) {
       state = e.code == ApiErrorCode.appUpgradeRequired
           ? UpgradeRequired(e.message)
@@ -94,7 +190,35 @@ class AuthController extends StateNotifier<AuthState> {
     }
   }
 
+  /// Hand the offline store to whoever just signed in.
+  ///
+  /// A phone gets handed to a sibling and a school tablet is shared all day.
+  /// Without this the second student inherits the first one's library — their
+  /// subjects, their downloads, their reading history — so the store checks
+  /// who owns it and empties itself when the answer changes.
+  ///
+  /// A store that will not open must not cost anyone their login: the library
+  /// is one screen, and the session is the whole app.
+  Future<Authenticated> _bind(Authenticated session) async {
+    try {
+      final cache = await _ref.read(libraryCacheProvider.future);
+      await cache.claim('${session.tenant.site}|${session.user.name}');
+    } catch (_) {
+      // Nothing to bind to. The library screen will report it in its own place.
+    }
+
+    return session;
+  }
+
   Future<void> logout() async {
+    // Before clearing the credentials, while we still know whose library it is.
+    try {
+      final cache = await _ref.read(libraryCacheProvider.future);
+      await cache.wipe();
+    } catch (_) {
+      // A store that will not open cannot trap the user in the app either.
+    }
+
     await _repo.logout();
     state = const Unauthenticated();
   }
