@@ -269,6 +269,7 @@ class UploadTarget {
     required this.available,
     required this.offlineAllowed,
     required this.maxBytes,
+    this.storageLeftBytes,
   });
 
   final String provider;
@@ -291,7 +292,30 @@ class UploadTarget {
   final bool available;
   final bool offlineAllowed;
 
+  /// What the school's plan still has room for, or null when it has no storage
+  /// cap at all.
+  ///
+  /// Declared for the same reason as [maxBytes], and it fails differently: a
+  /// shorter clip can slip under a per-file cap, but nothing the teacher
+  /// records reclaims a full quota. Telling them apart is the difference
+  /// between "record a shorter one" and "someone has to delete something".
+  final int? storageLeftBytes;
+
   bool get canUpload => available && strategy != UploadStrategy.unknown;
+
+  /// A sentence for the picker, or null when there is nothing worth saying.
+  ///
+  /// Shown only once the school is inside its last gigabyte: a quota line on
+  /// every screen is noise until the day it matters, and by then it is
+  /// furniture nobody reads.
+  String? get storageNotice {
+    final left = storageLeftBytes;
+    if (left == null || left > 1024 * 1024 * 1024) return null;
+
+    return left <= 0
+        ? 'امتلأ تخزين المدرسة. لن يُقبل رفع جديد حتى تُحذف مقاطع أو تُرقّى الخطة.'
+        : 'تبقّى ${_mb(left)} ميجابايت من تخزين المدرسة.';
+  }
 
   factory UploadTarget.fromJson(Map<String, dynamic> json) => UploadTarget(
     provider: (json['provider'] as String?) ?? '',
@@ -306,14 +330,32 @@ class UploadTarget {
     // A server that predates this field must not be read as "zero bytes
     // allowed", which would refuse every upload before it started.
     maxBytes: asInt(json['max_upload_bytes']),
+    // Absent means unlimited, and must not be read as zero — that would
+    // refuse every upload on a school whose plan states no storage cap.
+    storageLeftBytes: json['storage_left_bytes'] == null
+        ? null
+        : asInt(json['storage_left_bytes']),
   );
 
   /// Why this file cannot be sent, or null when it can.
+  ///
+  /// Two different walls, two different answers. The per-file cap is about
+  /// this recording; the quota is about the school. Collapsing them into one
+  /// message sends a teacher off to film a shorter clip that will be refused
+  /// for exactly the same reason.
   String? rejects(int bytes) {
-    if (maxBytes <= 0 || bytes <= maxBytes) return null;
+    if (maxBytes > 0 && bytes > maxBytes) {
+      return 'حجم الملف ${_mb(bytes)} ميجابايت، والحدّ الأقصى ${_mb(maxBytes)}.\n'
+          'صوّر مقطعاً أقصر، أو اطلب من مسؤول المنصّة رفع الحدّ.';
+    }
 
-    return 'حجم الملف ${_mb(bytes)} ميجابايت، والحدّ الأقصى ${_mb(maxBytes)}.\n'
-        'صوّر مقطعاً أقصر، أو اطلب من مسؤول المنصّة رفع الحدّ.';
+    final left = storageLeftBytes;
+    if (left != null && bytes > left) {
+      return 'لم يبقَ من تخزين المدرسة سوى ${_mb(left)} ميجابايت، وحجم الملف '
+          '${_mb(bytes)}.\nاحذف مقاطع قديمة أو اطلب ترقية خطة المدرسة.';
+    }
+
+    return null;
   }
 
   static String _mb(int bytes) => (bytes / (1024 * 1024)).toStringAsFixed(0);
