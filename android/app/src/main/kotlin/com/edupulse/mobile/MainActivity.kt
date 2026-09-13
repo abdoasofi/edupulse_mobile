@@ -1,4 +1,4 @@
-package sa.gain.edupulse.edupulse_mobile
+package com.edupulse.mobile
 
 import io.flutter.embedding.android.FlutterActivity
 
